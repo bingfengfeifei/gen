@@ -49,10 +49,11 @@ func (c *Column) ToField(nullable, coverable, signable bool) *Field {
 	if signable && strings.Contains(c.columnType(), "unsigned") && strings.HasPrefix(fieldType, "int") {
 		fieldType = "u" + fieldType
 	}
+	defaultValue, ok := c.defaultTagValue()
 	switch {
 	case c.Name() == "deleted_at" && fieldType == "time.Time":
 		fieldType = "gorm.DeletedAt"
-	case coverable && c.needDefaultTag(c.defaultTagValue()):
+	case coverable && ok && c.needDefaultTag(defaultValue):
 		fieldType = "*" + fieldType
 	case nullable && !strings.HasPrefix(fieldType, "*"):
 		if n, ok := c.Nullable(); ok && n {
@@ -111,8 +112,10 @@ func (c *Column) buildGormTag() field.GormTag {
 		}
 	}
 
-	if dtValue := c.defaultTagValue(); c.needDefaultTag(dtValue) { // cannot set default tag for primary key
+	if dtValue, ok := c.defaultTagValue(); ok {
+		if c.needDefaultTag(dtValue) { // cannot set default tag for primary key
 		tag.Set(field.TagKeyGormDefault, dtValue)
+		}
 	}
 	if comment, ok := c.Comment(); ok && comment != "" {
 		if c.multilineComment() {
@@ -124,17 +127,18 @@ func (c *Column) buildGormTag() field.GormTag {
 }
 
 // needDefaultTag check if default tag needed
+// FIX: fix 0 or '' default value missing error
 func (c *Column) needDefaultTag(defaultTagValue string) bool {
-	if defaultTagValue == "" {
-		return false
-	}
+	//if defaultTagValue == "" {
+	//	return false
+	//}
 	switch c.ScanType().Kind() {
 	case reflect.Bool:
-		return defaultTagValue != "false"
+		return true
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64, reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Float32, reflect.Float64:
-		return defaultTagValue != "0"
+		return true
 	case reflect.String:
-		return defaultTagValue != ""
+		return true
 	case reflect.Struct:
 		return strings.Trim(defaultTagValue, "'0:- ") != ""
 	}
@@ -142,19 +146,24 @@ func (c *Column) needDefaultTag(defaultTagValue string) bool {
 }
 
 // defaultTagValue return gorm default tag's value
-func (c *Column) defaultTagValue() string {
+// FIX: fix 0 or '' default value missing error
+func (c *Column) defaultTagValue() (string, bool) {
 	value, ok := c.DefaultValue()
 	if !ok {
-		return ""
+		return "", false
 	}
-	if value != "" && strings.TrimSpace(value) == "" {
-		return "'" + value + "'"
+	if strings.TrimSpace(value) == "" {
+		return "'" + value + "'", true
 	}
-	return value
+	return value, true
 }
 
 func (c *Column) columnType() (v string) {
 	if cl, ok := c.ColumnType.ColumnType(); ok {
+		// FIX: fix blob binary type error
+		if strings.HasSuffix(cl, "blob binary") {
+			cl = strings.ReplaceAll(cl, "blob binary", "blob")
+		}
 		return cl
 	}
 	return c.DatabaseTypeName()
