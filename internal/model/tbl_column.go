@@ -3,6 +3,7 @@ package model
 import (
 	"fmt"
 	"reflect"
+	"regexp"
 	"strings"
 
 	"gorm.io/gen/field"
@@ -65,6 +66,13 @@ func (c *Column) ToField(nullable, coverable, signable bool) *Field {
 	if c, ok := c.Comment(); ok {
 		comment = c
 	}
+	comment, binding := c.commentToBinding(comment)
+	tag := map[string]string{
+		field.TagKeyJson: c.jsonTagNS(c.Name()),
+	}
+	if binding != "" {
+		tag[field.TagKeyBinding] = binding
+	}
 
 	return &Field{
 		Name:             c.Name(),
@@ -72,7 +80,7 @@ func (c *Column) ToField(nullable, coverable, signable bool) *Field {
 		ColumnName:       c.Name(),
 		MultilineComment: c.multilineComment(),
 		GORMTag:          c.buildGormTag(),
-		Tag:              map[string]string{field.TagKeyJson: c.jsonTagNS(c.Name())},
+		Tag:              tag,
 		ColumnComment:    comment,
 	}
 }
@@ -114,16 +122,34 @@ func (c *Column) buildGormTag() field.GormTag {
 
 	if dtValue, ok := c.defaultTagValue(); ok {
 		if c.needDefaultTag(dtValue) { // cannot set default tag for primary key
-		tag.Set(field.TagKeyGormDefault, dtValue)
+			tag.Set(field.TagKeyGormDefault, dtValue)
 		}
 	}
 	if comment, ok := c.Comment(); ok && comment != "" {
 		if c.multilineComment() {
 			comment = strings.ReplaceAll(comment, "\n", "\\n")
 		}
+		comment, _ := c.commentToBinding(comment)
 		tag.Set(field.TagKeyGormComment, comment)
 	}
 	return tag
+}
+
+func (c *Column) commentToBinding(comment string) (string, string) {
+	/*
+		comment,binding
+	*/
+	re := regexp.MustCompile(`.*\[\[(.*)]].*`)
+
+	result := re.FindStringSubmatch(comment)
+
+	if len(result) > 0 {
+		match := result[1]
+		comment = strings.ReplaceAll(comment, fmt.Sprintf("[[%s]]", match), "")
+		return comment, match
+	} else {
+		return comment, ""
+	}
 }
 
 // needDefaultTag check if default tag needed

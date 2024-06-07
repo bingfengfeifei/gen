@@ -6,8 +6,9 @@ import (
 )
 
 const (
-	TagKeyGorm = "gorm"
-	TagKeyJson = "json"
+	TagKeyGorm    = "gorm"
+	TagKeyJson    = "json"
+	TagKeyBinding = "binding"
 
 	//gorm tag
 	TagKeyGormColumn        = "column"
@@ -23,8 +24,9 @@ const (
 
 var (
 	tagKeyPriorities = map[string]int16{
-		TagKeyGorm: 100,
-		TagKeyJson: 99,
+		TagKeyGorm:    100,
+		TagKeyJson:    99,
+		TagKeyBinding: 98,
 
 		TagKeyGormColumn:        10,
 		TagKeyGormType:          9,
