@@ -190,6 +190,14 @@ func (c *Column) columnType() (v string) {
 		if strings.HasSuffix(cl, "blob binary") {
 			cl = strings.ReplaceAll(cl, "blob binary", "blob")
 		}
+
+		// FIX: fix varbinary type error
+		if strings.Contains(cl, "varbinary") {
+			if strings.Contains(cl, " binary") {
+				cl = strings.ReplaceAll(cl, " binary", "")
+			}
+		}
+
 		return cl
 	}
 	return c.DatabaseTypeName()
